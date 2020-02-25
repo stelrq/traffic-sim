@@ -1,0 +1,66 @@
+for (var i = 0; i < STOP_COUNT; i++) {
+        circle = new Circle(gameEngine, SIDE_OFF + SQUARE_SIZE * 2 + i * SQUARE_SIZE * STOP_COUNT, SIDE_OFF);
+        gameEngine.addEntity(circle);
+    }
+    for (var i = 0; i < STOP_COUNT; i++) {
+        circle = new Circle(gameEngine, SIDE_OFF, SIDE_OFF + SQUARE_SIZE * 3 + i * SQUARE_SIZE * STOP_COUNT);
+        gameEngine.addEntity(circle);
+    }
+    for (var i = 0; i < STOP_COUNT; i++) {
+        circle = new Circle(gameEngine, SIDE_OFF + SQUARE_SIZE * 3 + i * SQUARE_SIZE * STOP_COUNT, SIDE_OFF + SQUARE_SIZE * (SQUARE_COUNT - 1));
+        gameEngine.addEntity(circle);
+    }
+    for (var i = 0; i < STOP_COUNT; i++) {
+        circle = new Circle(gameEngine, SIDE_OFF +  SQUARE_SIZE * (SQUARE_COUNT - 1), SIDE_OFF + SQUARE_SIZE * 2 + i * SQUARE_SIZE * STOP_COUNT);
+        gameEngine.addEntity(circle);
+    }
+
+
+    collide(other) {
+        return distance(this, other) < this.radius + other.radius;
+    }
+    collideLeft() {
+        return (this.x - this.radius) < 0;
+    }
+    collideRight() {
+        return (this.x + this.radius) > this.game.surfaceWidth - SIDE;
+    }
+    collideTop() {
+        return (this.y - this.radius) < 0;
+    }
+    collideBottom() {
+        return (this.y + this.radius) > this.game.surfaceHeight - SIDE;
+    }
+
+    collide(obs) {
+        let overlapX = (this.x + this.radius > obs.x && 
+            this.x - this.radius < obs.x + obs.dW);
+        let overlapY = (this.y + this.radius > obs.y &&
+            this.y - this.radius < obs.y + obs.dH);
+        return overlapX && overlapY;
+    }
+
+    dfs(i, j, board) {
+        console.log(path);
+        if (i >= SQUARE_COUNT || j >= SQUARE_COUNT || i < 0 || j < 0 || this.game.board[i][j]) {
+            return;
+        }
+        if (i === this.home.i && j === this.home.j) {
+            return path;
+        }
+        let curPath = path.slice(0, path.length);
+        curPath.push({i:i + 1, j:j})
+        this.dfs(i + 1, j, curPath);
+        curPath = path.slice(0, path.length)
+        curPath.push({i:i - 1, j:j});
+        this.dfs(i - 1, j, curPath);
+        curPath = path.slice(0, path.length);
+        curPath.push({i:i, j:j - 1});
+        this.dfs(i, j - 1, curPath);
+        curPath = path.slice(0, path.length);
+        curPath.push({i:i, j:j + 1});
+        this.dfs(i, j + 1, curPath);
+    }
+}
+
+
