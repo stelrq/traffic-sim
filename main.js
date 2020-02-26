@@ -83,7 +83,7 @@ class Background extends Entity {
 class Car extends Circle {
 
     constructor(game, i, j) {
-        super(game, SIDE + SQUARE_SIZE/2 + i * SQUARE_SIZE,SIDE + SQUARE_SIZE + j * SQUARE_SIZE);
+        super(game, SIDE + SQUARE_SIZE/2 + i * SQUARE_SIZE,SIDE + SQUARE_SIZE/2 + j * SQUARE_SIZE);
         this.i = i;
         this.j = j;
         this.colors = ["Purple", "Green"];
@@ -99,39 +99,48 @@ class Car extends Circle {
     }
 
     update() {
-        let newI = Math.floor((this.x - SIDE)/SQUARE_SIZE);
-        let newJ = Math.floor((this.y - SIDE)/SQUARE_SIZE);
-        if (this.i !== newI || this.j !== newJ) {
-            this.i = newI;
-            this.j = newJ;
-            this.pathIndex--;
-        }
         let movement = this.pathFind();
         if (!movement) {
             this.color = 1;
         }
+        this.i = Math.round((this.x - SIDE - SQUARE_SIZE/2)/SQUARE_SIZE);
+        this.j = Math.round((this.y - SIDE - SQUARE_SIZE/2)/SQUARE_SIZE);
+        // if (this.i !== newI || this.j !== newJ) {
+        //     this.i = newI;
+        //     this.j = newJ;
+        //     this.pathIndex--;
+        // }
+    }
+
+
+    move(currentMove) {
+        let amountMoved = this.game.clockTick * this.speed;
+        console.log(currentMove.direction);
+        if (currentMove.direction === 'right')
+                this.x -= amountMoved;
+        else if (currentMove.direction ===  'left')
+                this.x += amountMoved;
+        else if (currentMove.direction ===  'up')
+                this.y += amountMoved;
+        else if(currentMove.direction ===  'down')
+                this.y -= amountMoved;
+        currentMove.amountLeft -= amountMoved;
     }
 
     pathFind() {
-        let curDest = this.path[this.pathIndex];
         let moved = false;
-        if(curDest) {
-            console.log(curDest, this.i, this.j);
-            if (this.i < curDest.i) {
-                this.x += this.game.clockTick * this.speed;
-                moved = true;
-            } else if (this.i > curDest.i) {
-                this.x -= this.game.clockTick * this.speed;
-                moved = true;
+        if(this.currentMove) {
+            if (this.currentMove.amountLeft > SQUARE_SIZE/20) {
+                this.move(this.currentMove)
+                this.moved = true;
+            } else if (this.pathIndex >= 0) {
+                this.currentMove = {'direction':this.path[this.pathIndex--], 'amountLeft':SQUARE_SIZE};
+                this.move(this.currentMove);
+                this.moved = true;
             }
-            else if (this.j < curDest.j) {
-                this.y += this.game.clockTick * this.speed;
-                moved = true;
-            } else if (this.j > curDest.j) {
-                this.y -= this.game.clockTick * this.speed;
-                moved = true;
-            }
+
         }
+
         return moved;
     }
     findPath() {
@@ -142,6 +151,7 @@ class Car extends Circle {
         // if (found) {
             this.path = this.recover(dfs.board);
             this.pathIndex = this.path.length - 1;
+            this.currentMove = {'direction':this.path[this.pathIndex--], 'amountLeft':SQUARE_SIZE};
         // }
         
     }
@@ -151,10 +161,12 @@ class Car extends Circle {
         let path = [];
         while(coordinates.i !== this.i || coordinates.j !== this.j) {
             // console.log(this, coordinates);
-            path.push(coordinates);
+            path.push(completedBoard[coordinates.i][coordinates.j]);
             console.log(completedBoard[coordinates.i][coordinates.j]);
             coordinates = MOVE[completedBoard[coordinates.i][coordinates.j]](coordinates);
-            console.log(coordinates);
+
+            // console.log(completedBoard[coordinates.i][coordinates.j]);
+            // console.log(coordinates);
         }
         return path;
     }
