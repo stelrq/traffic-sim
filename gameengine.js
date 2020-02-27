@@ -155,6 +155,7 @@ class GameEngine {
                 this.entities.splice(i, 1);
             }
         }
+        this.background.forEach(bg => bg.update());
     }
     loop() {
         this.clockTick = this.timer.tick();
