@@ -198,21 +198,27 @@ class Car extends Circle {
 
 
     move(currentMove) {
+        let moves = Object.keys(this.moving);
+        moves.forEach(move => this.moving[move] = false);
         let amountMoved = this.game.clockTick * this.speed;
         // console.log(currentMove.direction);
         //all movement is backwards here because of how the path is built
         if (currentMove.direction === 'right' && !this.collision.left) {
                 this.x -= amountMoved;
                 currentMove.amountLeft -= amountMoved;
+                this.moving[currentMove.direction] = true;
         } else if (currentMove.direction ===  'left' && !this.collision.right) {
             this.x += amountMoved;
             currentMove.amountLeft -= amountMoved;
+            this.moving[currentMove.direction] = true;
         } else if (currentMove.direction ===  'up' && !this.collision.down) {
             this.y += amountMoved;
             currentMove.amountLeft -= amountMoved;
+            this.moving[currentMove.direction] = true;
         } else if(currentMove.direction ===  'down' && !this.collision.up) {
             this.y -= amountMoved;
             currentMove.amountLeft -= amountMoved;
+            this.moving[currentMove.direction] = true;
         }
                 
     }
@@ -304,7 +310,13 @@ class dfsCall{
         } else {
             options.push(new dfsCall(this.i, this.j - 1, this.board, 'down', this.home, ++this.calls));
         }
-        options.sort((a, b) => distance(a, a.home) - distance(b, b.home));
+        options.sort((a, b) => {
+            if(a.i < 0 || a.j < 0 || a.i >= SQUARE_COUNT || a.j >= SQUARE_COUNT) {
+                return 1;
+            } else {
+                return distance(a, a.home) - distance(b, b.home);
+            }
+        });
         let found = false;
         for (const opt of options)
             found = opt.dfs();
