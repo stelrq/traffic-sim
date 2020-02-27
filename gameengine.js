@@ -48,7 +48,7 @@ class GameEngine {
             this.board[i] = [];
             this.testBoard[i] = [];
             for (let j = 0; j < SQUARE_COUNT; j++) {
-                this.board[i][j] = false;
+                this.board[i][j] = 0;
                 this.testBoard[i][j] = new Stoplight(this, i * SQUARE_SIZE + SIDE, j * SQUARE_SIZE + SIDE);
             }
         }
@@ -106,14 +106,7 @@ class GameEngine {
     }
     addObstacle(entity) {
         this.obstacles.push(entity);
-        let sqW = entity.dW/SQUARE_SIZE;
-        let sqH = entity.dH/SQUARE_SIZE;
-        for (let i = 0; i < sqW; i++) {
-            for (let j = 0; j < sqH; j++) {
-                this.board[Math.floor((entity.x - SIDE)/SQUARE_SIZE + i)]
-                [Math.floor((entity.y - SIDE)/SQUARE_SIZE) + j] = true;
-            }
-        }
+        entity.setBoard();
     }
     addHome(entity) {
         this.homes.push(entity);
@@ -135,7 +128,7 @@ class GameEngine {
         // this.testBoard.forEach(tS => tS.draw(this.ctx));
         for (let i = 0; i < SQUARE_COUNT; i++) {
             for (let j = 0; j < SQUARE_COUNT; j++) {
-                if(this.board[i][j])
+                if(this.board[i][j] > 50)
                     this.testBoard[i][j].draw(this.ctx);
             }
         }
@@ -156,6 +149,7 @@ class GameEngine {
             }
         }
         this.background.forEach(bg => bg.update());
+        this.obstacles.forEach(obs => obs.update());
     }
     loop() {
         this.clockTick = this.timer.tick();

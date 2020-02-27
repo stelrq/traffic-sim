@@ -12,7 +12,7 @@ const SIDE_OFF = 15 + SQUARE_SIZE/2;
 const STOP_COUNT = 6;
 const ERROR = 1;
 const SLOW_RADIUS = RADIUS * 4;
-const CALL_LIMIT = 10000000;
+const CALL_LIMIT = 100000;
 const CAR_LIMIT = 200;
 const SPAWN_DELAY = 100;
 const MOVE = {left:function(coordinates) {
@@ -40,11 +40,11 @@ function copyBoard(board) {
     for (let i = 0; i < SQUARE_COUNT; i++) {
         newBoard[i] = [];
         for (let j = 0; j < SQUARE_COUNT; j++) {
-            if (board[i][j]) {
-                newBoard[i][j] = 'full';
-            } else {
-                newBoard[i][j] = 'empty';
-            }
+            newBoard[i][j] = board[i][j];
+            // if (board[i][j] === 100)
+            //     newBoard[i][j] = 'full';
+            // else 
+            //     newBoard[i][j] = 'empty';
         }
     }
     return newBoard;
@@ -92,30 +92,37 @@ class Background extends Entity {
             this.srcW, this.srcH, this.x, this.y, this.srcW * this.scale, this.srcH * this.scale);
     }
     update(){
-        this.updateTimer++;
-        if(this.updateTimer > SPAWN_DELAY) {
-            let car;
-            let cars = [];
-            let numEnts = this.game.entities.length;
-            let botLim = numEnts/4 * this.updateCycle;
-            let topLim = numEnts/4 * (this.updateCycle + 1)
-            if (numEnts < CAR_LIMIT) {
-                for (let i = botLim; i < topLim; i++) {
-                    let ent = this.game.entities[i];
-                    if (ent instanceof Car) {
-                        if (!this.game.board[ent.startI][ent.startJ]) {
-                            car = new Car(this.game, ent.startI, ent.startJ);
-                            this.game.addEntity(car);
-                            cars.push(car);
-                        }
-                    }
-                }
+        // this.updateTimer++;
+        // if(this.updateTimer > SPAWN_DELAY) {
+        //     let car;
+        //     let cars = [];
+        //     let numEnts = this.game.entities.length;
+        //     let botLim = numEnts/8 * this.updateCycle;
+        //     let topLim = numEnts/8 * (this.updateCycle + 1)
+        //     if (numEnts < CAR_LIMIT) {
+        //         for (let i = botLim; i < topLim; i++) {
+        //             let ent = this.game.entities[i];
+        //             if (ent instanceof Car) {
+        //                 if (this.game.board[ent.startI][ent.startJ] < 50) {
+        //                     car = new Car(this.game, ent.startI, ent.startJ);
+        //                     this.game.addEntity(car);
+        //                     cars.push(car);
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     for (const car of cars) {
+        //         car.findPath();
+        //     }
+        //     this.updateCycle = this.updateCycle < 8 ? this.updateCycle++:0;
+        //     this.updateTimer = 0;
+            
+        // }
+        for (let i = 0; i < SQUARE_COUNT; i++) {
+            for (let j = 0; j < SQUARE_COUNT; j++) {
+                if (this.game.board[i][j] > 0)
+                    this.game.board[i][j] -= .1;
             }
-            for (const car of cars) {
-                car.findPath();
-            }
-            this.updateCycle = this.updateCycle < 4 ? this.updateCycle++:0;
-            this.updateTimer = 0;
         }
     }
 }
@@ -144,8 +151,9 @@ class Car extends Circle {
         console.log(this.startX, this.startY, "start coordinates");
         this.x = this.startI * SQUARE_SIZE + SQUARE_SIZE/2 + SIDE;
         this.y = this.startJ * SQUARE_SIZE + SQUARE_SIZE/2 + SIDE;
-        this.pathIndex = this.path.length - 1;
-        this.currentMove = {'direction':this.path[this.pathIndex--], 'amountLeft':SQUARE_SIZE};
+        // this.pathIndex = this.path.length - 1;
+        // this.currentMove = {'direction':this.path[this.pathIndex--], 'amountLeft':SQUARE_SIZE};
+        this.findPath();
     }
 
     collisionEntities(ents) {
@@ -175,12 +183,15 @@ class Car extends Circle {
     }
 
     update() {
+
         this.collisionEntities(this.game.entities);
         let movement = this.pathFind();
         if (!movement) {
             this.color = 1;
         }
-        // this.game.board[this.i][this.j] = false;
+        if (this.game.board < 98) {
+            this.game.board[this.i][this.j] += .1;
+        }
         this.i = Math.round((this.x - SIDE - SQUARE_SIZE/2)/SQUARE_SIZE);
         this.j = Math.round((this.y - SIDE - SQUARE_SIZE/2)/SQUARE_SIZE);
         // this.game.board[this.i][this.j] = true;
@@ -248,6 +259,7 @@ class Car extends Circle {
         
     }
 
+
     recover(completedBoard) {
         if (completedBoard.length > 0) {
             let coordinates = {i:this.home.i, j:this.home.j};
@@ -255,9 +267,11 @@ class Car extends Circle {
             while(coordinates.i !== this.i || coordinates.j !== this.j) {
                 // console.log(this, coordinates);
                 console.log(completedBoard[coordinates.i][coordinates.j]);
-                path.push(completedBoard[coordinates.i][coordinates.j]);
-                if(MOVE[completedBoard[coordinates.i][coordinates.j]])
-                    coordinates = MOVE[completedBoard[coordinates.i][coordinates.j]](coordinates);
+                let direction = convertNumToDirection(completedBoard[coordinates.i][coordinates.j]);
+                console.log(direction);
+                path.push(direction);
+                if(MOVE[direction])
+                    coordinates = MOVE[direction](coordinates);
                 else {
                     return [];
                 }
@@ -265,6 +279,32 @@ class Car extends Circle {
             }
             return path;
         }
+    }
+}
+
+function convertNumToDirection(num) {
+    switch (num) {
+        case -1:
+            return 'right';
+        case -2:
+            return 'up';
+        case  -3:
+            return 'left';
+        case -4:
+            return 'down';
+        
+    }
+}
+function convertDirectionToNum (dir) {
+    switch(dir) {
+        case 'right':
+            return -1;
+        case 'up':
+            return -2;
+        case 'left':
+            return -3;
+        case 'down':
+            return -4;
     }
 }
 
@@ -281,12 +321,11 @@ class dfsCall{
     dfs() {
         // console.log(i, j);
         // console.log(board);
-        if (this.i >= SQUARE_COUNT || this.j >= SQUARE_COUNT || 
-            this.i < 0 || this.j < 0 || 
-            this.board[this.i][this.j] != 'empty') {
+        if (!validateIJ(this) || this.board[this.i][this.j] > 99) {
             return false;
         } else {
-            this.board[this.i][this.j] = this.recoverMove;
+            console.log(convertDirectionToNum(this.recoverMove));
+            this.board[this.i][this.j] = convertDirectionToNum(this.recoverMove);
         }
         if (this.i === this.home.i && this.j === this.home.j) {
             return true;
@@ -304,7 +343,20 @@ class dfsCall{
         } else {
             options.push(new dfsCall(this.i, this.j - 1, this.board, 'down', this.home, ++this.calls));
         }
-        options.sort((a, b) => distance(a, a.home) - distance(b, b.home));
+        options.sort((a, b) => {
+            // console.log(a, b);
+            let pathScoreDif = 0;
+            // if(!validateIJ(a))
+            //     return 1;
+            // if (!validateIJ(b)){
+            //     return -1;
+            // }
+            // pathScoreDif = a.board[a.i][a.j] - b.board[b.i][b.j];
+            if (Math.abs(pathScoreDif) < 10)
+                return distance(a, a.home) - distance(b, b.home);
+            // else
+            //     return pathScoreDif;
+        });
         let found = false;
         for (const opt of options)
             found = opt.dfs();
@@ -313,6 +365,11 @@ class dfsCall{
     
 
 }
+
+function validateIJ(ent) {
+    return ent.i >= 0 && ent.j >= 0 && ent.i < SQUARE_COUNT && ent.j < SQUARE_COUNT && ent.board[ent.i][ent.j] >= 0;
+}
+
 class Stoplight extends Circle{
     constructor(game, x, y) {
         super(game, x, y);
@@ -342,14 +399,27 @@ class Home extends Circle {
 }
 
 class Obstacle extends Entity {
-    constructor(game, x, y, dW, dH) {
-        super(game, x, y);
+    constructor(game, i, j, dW, dH) {
+        super(game, SIDE + i * SQUARE_SIZE, SIDE + j * SQUARE_SIZE);
+        this.i = i;
+        this.j = j;
         this.colorTime = 0;
         this.color = "Cyan";
         this.dW = dW;
         this.dH = dH;
     }
-    update(){}
+    setBoard() {
+        let sqW = this.dW/SQUARE_SIZE;
+        let sqH = this.dH/SQUARE_SIZE;
+        for (let i = 0; i < sqW; i++) {
+            for (let j = 0; j < sqH; j++) {
+                this.game.board[this.i + i][this.j + j] = 100;
+            }
+        }
+    }
+    update(){
+        this.setBoard();
+    }
     draw(ctx) {
         ctx.fillStyle = this.color
         ctx.fillRect(this.x,this.y, this.dW, this.dH);
@@ -382,16 +452,18 @@ ASSET_MANAGER.downloadAll(function () {
     gameEngine.background.push(background);
     background = new Background(gameEngine, ASSET_MANAGER, 30, 30, 930, 930, 465, 465);
     gameEngine.background.push(background);
-    // gameEngine.addHome(new Home(gameEngine, 0, 0));
+    gameEngine.addHome(new Home(gameEngine, 0, 0));
     // gameEngine.addHome(new Home(gameEngine, SQUARE_COUNT - 1, SQUARE_COUNT - 1));
     // gameEngine.addHome(new Home(gameEngine, Math.floor(SQUARE_COUNT/2), Math.floor(SQUARE_COUNT - 1)));
     let cars = [];
-    let circle;
-
-    cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 0, 0));
-    cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 0, 18));
-    cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 18, 0));
-    cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 18, 18));
+    let car = new Car(gameEngine, SQUARE_COUNT - 1, SQUARE_COUNT - 1);
+    cars.push(car);
+    gameEngine.addEntity(car);
+    generateObstacles(gameEngine,  100);
+    // cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 0, 0));
+    // cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 0, 18));
+    // cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 18, 0));
+    // cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 18, 18));
     //top row
     // for (var i = 0; i < STOP_COUNT; i++) {
     //     for (var j = 0; j < STOP_COUNT; j++) {
@@ -440,8 +512,10 @@ function generateCarsCenter(cars, game){
 function generateObstacles(gameEngine, tries) {
 
     for (var i = 0; i < tries; i++) {
-        let x = SIDE + SQUARE_SIZE * Math.round(Math.random() * (SQUARE_COUNT - 1));
-        let y = SIDE + SQUARE_SIZE * Math.round(Math.random() * (SQUARE_COUNT - 1));
+        let i = Math.round(Math.random() * (SQUARE_COUNT - 1));
+        let j = Math.round(Math.random() * (SQUARE_COUNT - 1));
+        let x = SIDE + SQUARE_SIZE * i;
+        let y = SIDE + SQUARE_SIZE * j;
         let dW = Math.round(Math.random() * 5)  * SQUARE_SIZE;
         let dH = Math.round(Math.random() * 5) * SQUARE_SIZE;
         let valid = true;
@@ -456,7 +530,7 @@ function generateObstacles(gameEngine, tries) {
                 valid = false;
         });
         if (valid) {
-            let obs = new Obstacle(gameEngine, x, y, dW, dH);
+            let obs = new Obstacle(gameEngine, i, j, dW, dH);
             gameEngine.addObstacle(obs);
         }
     }
@@ -464,8 +538,6 @@ function generateObstacles(gameEngine, tries) {
 
 function buildMapFromFile (game, file, startI, startJ) {
     const mapInfo = file;
-    let startX = startJ * SQUARE_SIZE + SIDE;
-    let startY = startI * SQUARE_SIZE + SIDE;
     let cars = [];
     let car;
     if (!mapInfo) {
@@ -480,7 +552,7 @@ function buildMapFromFile (game, file, startI, startJ) {
             if (current === '.') { //lol this is dumb but I don't know why the right way doesn't work
                 continue;
             } else if (current === '-') {
-                game.addObstacle(new Obstacle(game, startX + j * SQUARE_SIZE, startY + i * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE));
+                game.addObstacle(new Obstacle(game, startJ + j, startI + i, SQUARE_SIZE, SQUARE_SIZE));
             } else if (current === 'h') {
                 game.addHome(new Home(game, startJ + j, startI + i));
             } else if (current === 'c') {
