@@ -93,12 +93,13 @@ class Background extends Entity {
     }
     update(){
         this.updateTimer++;
+        let spawnRatio = 16;
         if(this.updateTimer > SPAWN_DELAY) {
             let car;
             let cars = [];
             let numEnts = this.game.entities.length;
-            let botLim = numEnts/4 * this.updateCycle;
-            let topLim = numEnts/4 * (this.updateCycle + 1)
+            let botLim = numEnts/spawnRatio * this.updateCycle;
+            let topLim = numEnts/spawnRatio * (this.updateCycle + 1)
             if (numEnts < CAR_LIMIT) {
                 for (let i = botLim; i < topLim; i++) {
                     let ent = this.game.entities[i];
@@ -114,7 +115,7 @@ class Background extends Entity {
             for (const car of cars) {
                 car.findPath();
             }
-            this.updateCycle = this.updateCycle < 4 ? this.updateCycle++:0;
+            this.updateCycle = this.updateCycle < spawnRatio ? this.updateCycle++:0;
             this.updateTimer = 0;
         }
     }
