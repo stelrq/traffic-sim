@@ -40,11 +40,7 @@ function copyBoard(board) {
     for (let i = 0; i < SQUARE_COUNT; i++) {
         newBoard[i] = [];
         for (let j = 0; j < SQUARE_COUNT; j++) {
-            if (board[i][j]) {
-                newBoard[i][j] = 'full';
-            } else {
-                newBoard[i][j] = 'empty';
-            }
+            newBoard[i][j] = board[i][j];
         }
     }
     return newBoard;
@@ -97,8 +93,8 @@ class Background extends Entity {
             let car;
             let cars = [];
             let numEnts = this.game.entities.length;
-            let botLim = numEnts/4 * this.updateCycle;
-            let topLim = numEnts/4 * (this.updateCycle + 1)
+            let botLim = numEnts/8 * this.updateCycle;
+            let topLim = numEnts/8 * (this.updateCycle + 1)
             if (numEnts < CAR_LIMIT) {
                 for (let i = botLim; i < topLim; i++) {
                     let ent = this.game.entities[i];
@@ -114,7 +110,7 @@ class Background extends Entity {
             for (const car of cars) {
                 car.findPath();
             }
-            this.updateCycle = this.updateCycle < 4 ? this.updateCycle++:0;
+            this.updateCycle = this.updateCycle < 8 ? this.updateCycle++:0;
             this.updateTimer = 0;
         }
     }
@@ -274,6 +270,32 @@ class Car extends Circle {
     }
 }
 
+function convertNumToDirection(num) {
+    switch (num) {
+        case -1:
+            return 'right';
+        case -2:
+            return 'up';
+        case  -3:
+            return 'left';
+        case -4:
+            return 'down';
+        
+    }
+}
+function convertDirectionToNum (dir) {
+    switch(dir) {
+        case 'right':
+            return -1;
+        case 'up':
+            return -2;
+        case 'left':
+            return -3;
+        case 'down':
+            return -4;
+    }
+}
+
 class dfsCall{
     constructor(i, j, board, recoverMove, home, calls) {
         this.i = i;
@@ -289,10 +311,11 @@ class dfsCall{
         // console.log(board);
         if (this.i >= SQUARE_COUNT || this.j >= SQUARE_COUNT || 
             this.i < 0 || this.j < 0 || 
-            this.board[this.i][this.j] != 'empty') {
+            this.board[this.i][this.j] != 0) {
             return false;
         } else {
-            this.board[this.i][this.j] = this.recoverMove;
+            console.log(convertDirectionToNum(this.recoverMove));
+            this.board[this.i][this.j] = convertDirectionToNum(this.recoverMove);
         }
         if (this.i === this.home.i && this.j === this.home.j) {
             return true;
@@ -354,14 +377,25 @@ class Home extends Circle {
 }
 
 class Obstacle extends Entity {
-    constructor(game, x, y, dW, dH) {
-        super(game, x, y);
+    constructor(game, i, j, dW, dH) {
+        super(game, i * SQUARE_SIZE + SIDE, j * SQUARE_SIZE + SIDE);
         this.colorTime = 0;
         this.color = "Cyan";
         this.dW = dW;
         this.dH = dH;
     }
-    update(){}
+    setBoard() {
+        let sqW = this.dW/SQUARE_SIZE;
+        let sqH = this.dH/SQUARE_SIZE;
+        for (let i = 0; i < sqW; i++) {
+            for (let j = 0; j < sqH; j++) {
+                this.game.board[this.i + i][this.j + j] = 100;
+            }
+        }
+    }
+    update(){
+        this.setBoard();
+    }
     draw(ctx) {
         ctx.fillStyle = this.color
         ctx.fillRect(this.x,this.y, this.dW, this.dH);
@@ -476,8 +510,8 @@ function generateObstacles(gameEngine, tries) {
 
 function buildMapFromFile (game, file, startI, startJ) {
     const mapInfo = file;
-    let startX = startJ * SQUARE_SIZE + SIDE;
-    let startY = startI * SQUARE_SIZE + SIDE;
+    // let startX = startJ * SQUARE_SIZE + SIDE;
+    // let startY = startI * SQUARE_SIZE + SIDE;
     let cars = [];
     let car;
     if (!mapInfo) {
@@ -492,7 +526,7 @@ function buildMapFromFile (game, file, startI, startJ) {
             if (current === '.') { //lol this is dumb but I don't know why the right way doesn't work
                 continue;
             } else if (current === '-') {
-                game.addObstacle(new Obstacle(game, startX + j * SQUARE_SIZE, startY + i * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE));
+                game.addObstacle(new Obstacle(game, startJ + j, startI + i));
             } else if (current === 'h') {
                 game.addHome(new Home(game, startJ + j, startI + i));
             } else if (current === 'c') {
