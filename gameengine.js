@@ -44,11 +44,14 @@ class GameEngine {
         this.board = [];
         this.homes = [];
         this.testBoard = [];
+        this.trafficBoard = [];
         for (let i = 0; i < SQUARE_COUNT; i++) {
             this.board[i] = [];
             this.testBoard[i] = [];
+            this.trafficBoard[i] = []
             for (let j = 0; j < SQUARE_COUNT; j++) {
                 this.board[i][j] = false;
+                this.trafficBoard[i][j] = 0;
                 this.testBoard[i][j] = new Stoplight(this, i * SQUARE_SIZE + SIDE, j * SQUARE_SIZE + SIDE);
             }
         }
@@ -106,14 +109,7 @@ class GameEngine {
     }
     addObstacle(entity) {
         this.obstacles.push(entity);
-        let sqW = entity.dW/SQUARE_SIZE;
-        let sqH = entity.dH/SQUARE_SIZE;
-        for (let i = 0; i < sqW; i++) {
-            for (let j = 0; j < sqH; j++) {
-                this.board[Math.floor((entity.x - SIDE)/SQUARE_SIZE + i)]
-                [Math.floor((entity.y - SIDE)/SQUARE_SIZE) + j] = true;
-            }
-        }
+        entity.setBoard();
     }
     addHome(entity) {
         this.homes.push(entity);
@@ -142,6 +138,8 @@ class GameEngine {
         this.ctx.restore();
     }
     update() {
+        this.background.forEach(bg => bg.update());
+        this.obstacles.forEach(obs => obs.update());
         var entitiesCount = this.entities.length;
         for (var i = 0; i < entitiesCount; i++) {
             var entity = this.entities[i];
@@ -155,7 +153,6 @@ class GameEngine {
                 this.entities.splice(i, 1);
             }
         }
-        this.background.forEach(bg => bg.update());
     }
     loop() {
         this.clockTick = this.timer.tick();

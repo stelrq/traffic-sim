@@ -1,6 +1,6 @@
 
 const GO_BOARD = "./img/960px-Blank_Go_board.png";
-const MAP_FILES = ["map1.txt", "map2.txt", "map3.txt","map4.txt"];
+const MAP_FILES = ["map1.txt", "map2.txt", "map3.txt","map4.txt", "map5.txt"];
 const RADIUS = 5;
 const STOP_RADIUS = 10;
 const SQUARE_SIZE = 25;
@@ -11,10 +11,13 @@ const SIDE = 15;
 const SIDE_OFF = 15 + SQUARE_SIZE/2;
 const STOP_COUNT = 6;
 const ERROR = 1;
-const SLOW_RADIUS = RADIUS * 4;
+const SLOW_RADIUS = RADIUS * 2;
 const CALL_LIMIT = 10000000;
 const CAR_LIMIT = 200;
 const SPAWN_DELAY = 100;
+const MOVEMENT_DELAY = 10000;
+const COLORS = ["Green", "Yellow", "Red", "Purple", "White", "Black", "Pink"];
+let colorIndex = 0;
 const MOVE = {left:function(coordinates) {
                 return {i:coordinates.i - 1, j:coordinates.j};},
         right:function(coordinates) {
@@ -68,7 +71,7 @@ class Circle extends Entity {
 
     draw(ctx) {
         ctx.beginPath();
-        ctx.fillStyle = this.colors[this.color];
+        ctx.fillStyle = this.color;
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
         ctx.fill();
         ctx.closePath();
@@ -85,7 +88,7 @@ class Background extends Entity {
         this.srcW = srcW;
         this.srcH = srcH;
         this.updateTimer = 0;
-        this.updateCycle = 0;
+        this.updateIndex = 0;
     }
     draw(ctx) {
         ctx.drawImage(this.spriteSheet, this.srcX, this.srcY, 
@@ -93,30 +96,23 @@ class Background extends Entity {
     }
     update(){
         this.updateTimer++;
-        let spawnRatio = 16;
         if(this.updateTimer > SPAWN_DELAY) {
-            let car;
-            let cars = [];
-            let numEnts = this.game.entities.length;
-            let botLim = numEnts/spawnRatio * this.updateCycle;
-            let topLim = numEnts/spawnRatio * (this.updateCycle + 1)
-            if (numEnts < CAR_LIMIT) {
-                for (let i = botLim; i < topLim; i++) {
-                    let ent = this.game.entities[i];
-                    if (ent instanceof Car) {
-                        if (!this.game.board[ent.startI][ent.startJ]) {
-                            car = new Car(this.game, ent.startI, ent.startJ);
-                            this.game.addEntity(car);
-                            cars.push(car);
-                        }
-                    }
-                }
-            }
-            for (const car of cars) {
+            let ent = this.game.entities[this.updateIndex];
+            if (ent instanceof Car) {
+                let car = new Car(this.game, ent.startI, ent.startJ);
+                this.game.addEntity(car);
                 car.findPath();
             }
-            this.updateCycle = this.updateCycle < spawnRatio ? this.updateCycle++:0;
+
             this.updateTimer = 0;
+            this.updateIndex++;
+            console.log(this.game.trafficBoard);
+        }
+        for (let i = 0; i < SQUARE_COUNT; i++) {
+            for (let j = 0; j < SQUARE_COUNT; j++) {
+                if (this.game.trafficBoard[i][j] > 0)
+                    this.game.trafficBoard[i][j] -= .1;
+            }
         }
     }
 }
@@ -129,12 +125,12 @@ class Car extends Circle {
         this.j = j;
         this.startI = i;
         this.startJ = j;
-        this.colors = ["Purple", "Green"];
         this.color = 0;
         this.radius = RADIUS;
-        this.visualRadius = 500;
-        this.speed = 100;
+        this.baseSpeed = 75;
+        this.speed = 75;
         this.path = null;
+        this.movementTimer = 0;
         this.slowRadius = SLOW_RADIUS;
         this.pathIndex = -1;
         this.moving = {left:false, right:false, up:false, down:false};
@@ -142,16 +138,20 @@ class Car extends Circle {
     }
 
     respawn() {
-        console.log(this.startX, this.startY, "start coordinates");
+        // console.log(this.startX, this.startY, "start coordinates");
         this.x = this.startI * SQUARE_SIZE + SQUARE_SIZE/2 + SIDE;
         this.y = this.startJ * SQUARE_SIZE + SQUARE_SIZE/2 + SIDE;
-        this.pathIndex = this.path.length - 1;
-        this.currentMove = {'direction':this.path[this.pathIndex--], 'amountLeft':SQUARE_SIZE};
+        this.i = Math.round((this.x - SIDE - SQUARE_SIZE/2)/SQUARE_SIZE);
+        this.j = Math.round((this.y - SIDE - SQUARE_SIZE/2)/SQUARE_SIZE);
+        // this.pathIndex = this.path.length - 1;
+        // this.currentMove = {'direction':this.path[this.pathIndex--], 'amountLeft':SQUARE_SIZE};
+        this.findPath();
     }
 
     collisionEntities(ents) {
         let keys = Object.keys(this.collision);
         keys.forEach(key => this.collision[key] = false);
+        this.speed = this.baseSpeed;
         ents.forEach(ent => {
             if (!(ent instanceof Home))
                 this.collisionSingle(ent)
@@ -172,6 +172,7 @@ class Car extends Circle {
                 }
             });
             this.collision[maxKey] = true;
+            // this.speed -= measurements[maxKey];
         } 
     }
 
@@ -179,9 +180,16 @@ class Car extends Circle {
         this.collisionEntities(this.game.entities);
         let movement = this.pathFind();
         if (!movement) {
-            this.color = 1;
+            this.movementTimer++;
+        } else {
+            this.movementTimer = 0;
+        }
+        if (this.movementTimer > MOVEMENT_DELAY) {
+            this.movementTimer = 0;
+            this.respawn();
         }
         // this.game.board[this.i][this.j] = false;
+        // console.log(this.i, this.j);
         this.i = Math.round((this.x - SIDE - SQUARE_SIZE/2)/SQUARE_SIZE);
         this.j = Math.round((this.y - SIDE - SQUARE_SIZE/2)/SQUARE_SIZE);
         // this.game.board[this.i][this.j] = true;
@@ -189,6 +197,9 @@ class Car extends Circle {
             // console.log(this, "made it home");
             this.respawn();
             // console.log(this.x, this.y, this.pathIndex);
+        } else {
+            // console.log(this.game.trafficBoard, this.i, this.j);
+            this.game.trafficBoard[this.i][this.j] += 1;
         }
         // if (this.i !== newI || this.j !== newJ) {
         //     this.i = newI;
@@ -209,8 +220,13 @@ class Car extends Circle {
                 currentMove.amountLeft -= amountMoved;
                 this.moving[currentMove.direction] = true;
         } else if (currentMove.direction ===  'left' && !this.collision.right) {
-            this.x += amountMoved;
-            currentMove.amountLeft -= amountMoved;
+            if (this.x + amountMoved < SQUARE_SIZE * SQUARE_COUNT + SIDE) {
+                this.x += amountMoved;
+                currentMove.amountLeft -= amountMoved;
+            } else {
+                this.x = SQUARE_SIZE * SQUARE_COUNT + SIDE - SQUARE_SIZE/2
+                currentMove.amountLeft = 0;
+            }
             this.moving[currentMove.direction] = true;
         } else if (currentMove.direction ===  'up' && !this.collision.down) {
             this.y += amountMoved;
@@ -244,7 +260,8 @@ class Car extends Circle {
         let board = copyBoard(this.game.board);
         let choice = Math.round(Math.random() * (this.game.homes.length - 1));
         this.home = this.game.homes[choice];
-        let dfs = new dfsCall(this.i, this.j, board, 'start', this.home, 0);
+        this.color = this.home.color;
+        let dfs = new dfsCall(this.i, this.j, board, this.game, 'start', this.home, 0);
         let found = dfs.dfs();
         // if (found) {
             this.path = this.recover(dfs.board);
@@ -261,7 +278,7 @@ class Car extends Circle {
             let path = [];
             while(coordinates.i !== this.i || coordinates.j !== this.j) {
                 // console.log(this, coordinates);
-                console.log(completedBoard[coordinates.i][coordinates.j]);
+                // console.log(completedBoard[coordinates.i][coordinates.j]);
                 path.push(completedBoard[coordinates.i][coordinates.j]);
                 if(MOVE[completedBoard[coordinates.i][coordinates.j]])
                     coordinates = MOVE[completedBoard[coordinates.i][coordinates.j]](coordinates);
@@ -276,11 +293,12 @@ class Car extends Circle {
 }
 
 class dfsCall{
-    constructor(i, j, board, recoverMove, home, calls) {
+    constructor(i, j, board, game, recoverMove, home, calls) {
         this.i = i;
         this.j = j;
         this.home = home;
         this.board = board;
+        this.game = game;
         this.recoverMove = recoverMove;
         this.calls = calls;
     }
@@ -302,21 +320,26 @@ class dfsCall{
         }
         let options = [];
         if (this.j % 2 === 0){
-            options.push(new dfsCall(this.i - 1, this.j, this.board, 'right', this.home, ++this.calls));
+            options.push(new dfsCall(this.i - 1, this.j, this.board, this.game, 'right', this.home, ++this.calls));
         } else {
-            options.push(new dfsCall(this.i + 1, this.j, this.board, 'left', this.home, ++this.calls));
+            options.push(new dfsCall(this.i + 1, this.j, this.board, this.game, 'left', this.home, ++this.calls));
         }
         if (this.i % 2 === 0) {
-            options.push(new dfsCall(this.i, this.j + 1, this.board, 'up', this.home, ++this.calls));
+            options.push(new dfsCall(this.i, this.j + 1, this.board, this.game, 'up', this.home, ++this.calls));
         } else {
-            options.push(new dfsCall(this.i, this.j - 1, this.board, 'down', this.home, ++this.calls));
+            options.push(new dfsCall(this.i, this.j - 1, this.board, this.game, 'down', this.home, ++this.calls));
         }
         options.sort((a, b) => {
-            if(a.i < 0 || a.j < 0 || a.i >= SQUARE_COUNT || a.j >= SQUARE_COUNT) {
-                return 1;
-            } else {
+            // if(!validateIJ(a)) {
+            //     return 1;
+            // } else if (!validateIJ(b)) {
+            //     return -1;
+            // }
+            // let trafficCostDif = this.game.trafficBoard[a.i][a.j] - this.game.trafficBoard[b.i][b.j];
+            // if (Math.abs(trafficCostDif) < 50) 
                 return distance(a, a.home) - distance(b, b.home);
-            }
+            // else
+            //     return trafficCostDif;
         });
         let found = false;
         for (const opt of options)
@@ -325,6 +348,10 @@ class dfsCall{
     }
     
 
+}
+
+function validateIJ(ent) {
+    return ent.i >= 0 && ent.j >= 0 && ent.i < SQUARE_COUNT && ent.j < SQUARE_COUNT && !ent.game.board[ent.i][ent.j];
 }
 class Stoplight extends Circle{
     constructor(game, x, y) {
@@ -342,36 +369,47 @@ class Stoplight extends Circle{
 }
 
 class Home extends Circle {
-    constructor(game, i, j) {
+    constructor(game, i, j, colorIndex) {
         super(game, SIDE + i * SQUARE_SIZE + SQUARE_SIZE/2, SIDE + j * SQUARE_SIZE + SQUARE_SIZE/2);
         this.i = i;
         this.j = j;
         this.radius = STOP_RADIUS;
-        this.colors = ["Green", "Yellow"];
         this.colorTime = 0;
-        this.color = 1;
+        this.color = COLORS[colorIndex];
     }
     update(){}
 }
 
 class Obstacle extends Entity {
-    constructor(game, x, y, dW, dH) {
-        super(game, x, y);
+    constructor(game, i, j, dW, dH) {
+        super(game, i * SQUARE_SIZE + SIDE, j * SQUARE_SIZE + SIDE);
+        this.i = i;
+        this.j = j;
         this.colorTime = 0;
         this.color = "Cyan";
         this.dW = dW;
         this.dH = dH;
     }
-    update(){}
+    setBoard() {
+        console.log('setting board');
+        let sqW = this.dW/SQUARE_SIZE;
+        let sqH = this.dH/SQUARE_SIZE;
+        for (let i = 0; i < sqW; i++) {
+            for (let j = 0; j < sqH; j++) {
+                this.game.trafficBoard[this.i + i][this.j + j] = 100;
+                this.game.board[this.i + i][this.j + j] = true;
+            }
+        }
+    }
+    update(){
+        this.setBoard();
+    }
+
     draw(ctx) {
         ctx.fillStyle = this.color
         ctx.fillRect(this.x,this.y, this.dW, this.dH);
     }
 }
-// the "main" code begins here
-var friction = 1;
-var acceleration = 1000000;
-var maxSpeed = 200;
 
 var ASSET_MANAGER = new AssetManager();
 
@@ -402,9 +440,9 @@ ASSET_MANAGER.downloadAll(function () {
     let circle;
 
     cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 0, 0));
-    cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 0, 18));
+    cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[4]), 0, 18));
     cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 18, 0));
-    cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 18, 18));
+    cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[4]), 18, 18));
     //top row
     // for (var i = 0; i < STOP_COUNT; i++) {
     //     for (var j = 0; j < STOP_COUNT; j++) {
@@ -477,8 +515,8 @@ function generateObstacles(gameEngine, tries) {
 
 function buildMapFromFile (game, file, startI, startJ) {
     const mapInfo = file;
-    let startX = startJ * SQUARE_SIZE + SIDE;
-    let startY = startI * SQUARE_SIZE + SIDE;
+    // let startX = startJ * SQUARE_SIZE + SIDE;
+    // let startY = startI * SQUARE_SIZE + SIDE;
     let cars = [];
     let car;
     if (!mapInfo) {
@@ -493,9 +531,10 @@ function buildMapFromFile (game, file, startI, startJ) {
             if (current === '.') { //lol this is dumb but I don't know why the right way doesn't work
                 continue;
             } else if (current === '-') {
-                game.addObstacle(new Obstacle(game, startX + j * SQUARE_SIZE, startY + i * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE));
+                game.addObstacle(new Obstacle(game, startJ + j, startI + i, SQUARE_SIZE, SQUARE_SIZE));
             } else if (current === 'h') {
-                game.addHome(new Home(game, startJ + j, startI + i));
+                colorIndex = colorIndex > COLORS.length - 1 ? 0 : colorIndex;
+                game.addHome(new Home(game, startJ + j, startI + i, colorIndex++));
             } else if (current === 'c') {
                 car = new Car(game, startJ + j, startI + i);
                 game.addEntity(car);
