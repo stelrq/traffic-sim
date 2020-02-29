@@ -1,4 +1,4 @@
-
+const socket = io.connect("http://24.16.255.56:8888");
 const GO_BOARD = "./img/960px-Blank_Go_board.png";
 const MAP_FILES = ["map1.txt", "map2.txt", "map3.txt","map4.txt", "map5.txt"];
 const RADIUS = 5;
@@ -13,9 +13,9 @@ const STOP_COUNT = 6;
 const ERROR = 1;
 const SLOW_RADIUS = RADIUS * 2;
 const CALL_LIMIT = 10000000;
-const CAR_LIMIT = 200;
-const SPAWN_DELAY = 100;
-const MOVEMENT_DELAY = 10000;
+const CAR_LIMIT = 100;
+const SPAWN_DELAY = 50;
+const MOVEMENT_DELAY = 100;
 const COLORS = ["Green", "Yellow", "Red", "Purple", "White", "Black", "Pink"];
 let colorIndex = 0;
 const MOVE = {left:function(coordinates) {
@@ -71,7 +71,7 @@ class Circle extends Entity {
 
     draw(ctx) {
         ctx.beginPath();
-        ctx.fillStyle = this.color;
+        ctx.fillStyle = COLORS[this.color];
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
         ctx.fill();
         ctx.closePath();
@@ -101,12 +101,13 @@ class Background extends Entity {
             if (ent instanceof Car) {
                 let car = new Car(this.game, ent.startI, ent.startJ);
                 this.game.addEntity(car);
+                car.chooseHome();
                 car.findPath();
             }
 
             this.updateTimer = 0;
             this.updateIndex++;
-            console.log(this.game.trafficBoard);
+            // console.log(this.game.trafficBoard);
         }
         for (let i = 0; i < SQUARE_COUNT; i++) {
             for (let j = 0; j < SQUARE_COUNT; j++) {
@@ -130,11 +131,14 @@ class Car extends Circle {
         this.baseSpeed = 75;
         this.speed = 75;
         this.path = null;
+        this.pathLength = 0;//not currently used
+        this.pathDifference = 0;//not currently used
         this.movementTimer = 0;
         this.slowRadius = SLOW_RADIUS;
         this.pathIndex = -1;
         this.moving = {left:false, right:false, up:false, down:false};
         this.collision = {left:false, right:false, up:false, down:false};
+        this.historyBoard = game.trafficBoardDeepCopy();
     }
 
     respawn() {
@@ -146,6 +150,7 @@ class Car extends Circle {
         // this.pathIndex = this.path.length - 1;
         // this.currentMove = {'direction':this.path[this.pathIndex--], 'amountLeft':SQUARE_SIZE};
         this.findPath();
+        this.color = this.home.color;
     }
 
     collisionEntities(ents) {
@@ -186,21 +191,25 @@ class Car extends Circle {
         }
         if (this.movementTimer > MOVEMENT_DELAY) {
             this.movementTimer = 0;
-            this.respawn();
+            let moves = Object.keys(this.moving);
+            moves = moves.filter(move => this.moving[move]);
+            let currentMove = moves[0];
+            // console.log(moves);
+            this.findPath(currentMove);
+            // this.color++;
         }
         // this.game.board[this.i][this.j] = false;
         // console.log(this.i, this.j);
         this.i = Math.round((this.x - SIDE - SQUARE_SIZE/2)/SQUARE_SIZE);
         this.j = Math.round((this.y - SIDE - SQUARE_SIZE/2)/SQUARE_SIZE);
+        // this.historyBoard[this.i][this.j] = this.pathDifference;
         // this.game.board[this.i][this.j] = true;
-        if (this.i === this.home.i && this.j === this.home.j) {
+        if ((this.i === this.home.i && this.j === this.home.j)) {
             // console.log(this, "made it home");
             this.respawn();
             // console.log(this.x, this.y, this.pathIndex);
-        } else {
-            // console.log(this.game.trafficBoard, this.i, this.j);
-            this.game.trafficBoard[this.i][this.j] += 1;
         }
+        this.effectSquare(this.i, this.j);
         // if (this.i !== newI || this.j !== newJ) {
         //     this.i = newI;
         //     this.j = newJ;
@@ -208,64 +217,135 @@ class Car extends Circle {
         // }
     }
 
+    effectSquare(i, j) {
+        let effectRatio = .15;
+        let effectDistance = 1;
+        let effectLimit = 100;
+        // (SQUARE_COUNT - distance(this, this.home)) * 
+        if (validateIJ({i:i, j:j})) {
+            if(this.game.trafficBoard[i][j] < effectLimit) {
+                // console.log(this.game.trafficBoard, this.i, this.j);
+                this.game.trafficBoard[i][j] += effectRatio;
+            }
+            let newI = i;
+            let newJ = j;
+            effectDistance = 1;
+            while (validateIJ({i:newI, j:newJ}) && !this.game.board[newI][newJ] && this.game.trafficBoard[newI][newJ] >= effectLimit) {
+                newI++;
+                effectDistance += effectDistance;
+                if(validateIJ({i:newI, j:newJ}))
+                    this.game.trafficBoard[newI][newJ] += effectRatio/effectDistance;
+            }
+            newI = i;
+            newJ = j;
+            effectDistance = 1;
+            while (validateIJ({i:newI, j:newJ})  && !this.game.board[newI][newJ] && this.game.trafficBoard[newI][newJ] >= effectLimit) {
+                newI--;
+                effectDistance += effectDistance;
+                if(validateIJ({i:newI, j:newJ}))
+                    this.game.trafficBoard[newI][newJ] += effectRatio/effectDistance;
+            }
+            newI = i;
+            newJ = j;
+            effectDistance = 1;
+            while (validateIJ({i:newI, j:newJ})  && !this.game.board[newI][newJ] && this.game.trafficBoard[newI][newJ] >= effectLimit) {
+                newJ++;
+                effectDistance += effectDistance;
+                if(validateIJ({i:newI, j:newJ}))
+                    this.game.trafficBoard[newI][newJ] += effectRatio/effectDistance;
+            }
+            newI = i;
+            newJ = j;
+            effectDistance = 1;
+            while (validateIJ({i:newI, j:newJ}) && !this.game.board[newI][newJ] && this.game.trafficBoard[newI][newJ] >= effectLimit) {
+                newJ--;
+                effectDistance += effectDistance;
+                if(validateIJ({i:newI, j:newJ}))
+                    this.game.trafficBoard[newI][newJ] += effectRatio/effectDistance;
+            }
+        }
+    }
 
     move(currentMove) {
         let moves = Object.keys(this.moving);
         moves.forEach(move => this.moving[move] = false);
         let amountMoved = this.game.clockTick * this.speed;
+        let moved = false;
         // console.log(currentMove.direction);
         //all movement is backwards here because of how the path is built
-        if (currentMove.direction === 'right' && !this.collision.left) {
+        if (currentMove.direction === 'right') {
+            if (!this.collision.left) {
                 this.x -= amountMoved;
                 currentMove.amountLeft -= amountMoved;
-                this.moving[currentMove.direction] = true;
-        } else if (currentMove.direction ===  'left' && !this.collision.right) {
-            if (this.x + amountMoved < SQUARE_SIZE * SQUARE_COUNT + SIDE) {
-                this.x += amountMoved;
-                currentMove.amountLeft -= amountMoved;
-            } else {
-                this.x = SQUARE_SIZE * SQUARE_COUNT + SIDE - SQUARE_SIZE/2
-                currentMove.amountLeft = 0;
+                moved = true;
             }
             this.moving[currentMove.direction] = true;
-        } else if (currentMove.direction ===  'up' && !this.collision.down) {
-            this.y += amountMoved;
-            currentMove.amountLeft -= amountMoved;
+        } else if (currentMove.direction ===  'left') {
+            if (!this.collision.right) {
+                if (this.x + amountMoved < SQUARE_SIZE * SQUARE_COUNT + SIDE) {
+                    this.x += amountMoved;
+                    currentMove.amountLeft -= amountMoved;
+                } else {
+                    this.x = SQUARE_SIZE * SQUARE_COUNT + SIDE - SQUARE_SIZE/2
+                    currentMove.amountLeft = 0;
+                }
+                moved = true;
+            }
             this.moving[currentMove.direction] = true;
-        } else if(currentMove.direction ===  'down' && !this.collision.up) {
-            this.y -= amountMoved;
-            currentMove.amountLeft -= amountMoved;
+        } else if (currentMove.direction ===  'up') {
+            if ( !this.collision.down) {
+                this.y += amountMoved;
+                currentMove.amountLeft -= amountMoved;
+                moved = true;
+            }
+            this.moving[currentMove.direction] = true;
+        } else if(currentMove.direction ===  'down') {
+            if (!this.collision.up) {
+                this.y -= amountMoved;
+                currentMove.amountLeft -= amountMoved;
+                moved = true;
+            }
             this.moving[currentMove.direction] = true;
         }
-                
+        return moved;      
     }
 
     pathFind() {
         let moved = false;
         if(this.currentMove) {
             if (this.currentMove.amountLeft > SQUARE_SIZE/35) {
-                this.move(this.currentMove)
-                this.moved = true;
+                moved = this.move(this.currentMove)
+                // this.moved = true;
             } else if (this.pathIndex >= 0) {
                 this.currentMove = {'direction':this.path[this.pathIndex--], 'amountLeft':SQUARE_SIZE};
-                this.move(this.currentMove);
-                this.moved = true;
+                moved = this.move(this.currentMove);
+                // this.moved = true;
             }
 
         }
 
         return moved;
     }
-    findPath() {
-        let board = copyBoard(this.game.board);
+
+    chooseHome() {
         let choice = Math.round(Math.random() * (this.game.homes.length - 1));
         this.home = this.game.homes[choice];
         this.color = this.home.color;
-        let dfs = new dfsCall(this.i, this.j, board, this.game, 'start', this.home, 0);
-        let found = dfs.dfs();
+    }
+    findPath(notThisWay) {
+        let board = copyBoard(this.game.board);
+        let dfs, found;
+        this.x = this.i * SQUARE_SIZE + SIDE + SQUARE_SIZE/2;
+        this.y = this.j * SQUARE_SIZE + SIDE + SQUARE_SIZE/2;
+        dfs = new dfsCall(this.i, this.j, board, this.game, 'start', this.home, 0);
+        found = dfs.dfs(notThisWay);
         // if (found) {
+            console.log(this.home);
+            console.log(dfs.board);
             this.path = this.recover(dfs.board);
             this.pathIndex = this.path.length - 1;
+            this.pathDifference = this.path.length - this.pathLength;
+            this.pathLength = this.path.length;
             if (this.pathIndex > 0)
                 this.currentMove = {'direction':this.path[this.pathIndex--], 'amountLeft':SQUARE_SIZE};
         // }
@@ -298,12 +378,13 @@ class dfsCall{
         this.j = j;
         this.home = home;
         this.board = board;
+        // this.historyBoard = historyBoard;
         this.game = game;
         this.recoverMove = recoverMove;
         this.calls = calls;
     }
 
-    dfs() {
+    dfs(notThisWay) {
         // console.log(i, j);
         // console.log(board);
         if (this.i >= SQUARE_COUNT || this.j >= SQUARE_COUNT || 
@@ -320,26 +401,49 @@ class dfsCall{
         }
         let options = [];
         if (this.j % 2 === 0){
-            options.push(new dfsCall(this.i - 1, this.j, this.board, this.game, 'right', this.home, ++this.calls));
+            if(notThisWay !== 'right')
+                options.push(new dfsCall(this.i - 1, this.j, this.board, this.game, 'right', this.home, ++this.calls));
         } else {
-            options.push(new dfsCall(this.i + 1, this.j, this.board, this.game, 'left', this.home, ++this.calls));
+            if(notThisWay !== 'left')
+                options.push(new dfsCall(this.i + 1, this.j, this.board, this.game, 'left', this.home, ++this.calls));
         }
         if (this.i % 2 === 0) {
-            options.push(new dfsCall(this.i, this.j + 1, this.board, this.game, 'up', this.home, ++this.calls));
+            if(notThisWay !== 'up')
+                options.push(new dfsCall(this.i, this.j + 1, this.board, this.game, 'up', this.home, ++this.calls));
         } else {
-            options.push(new dfsCall(this.i, this.j - 1, this.board, this.game, 'down', this.home, ++this.calls));
+            if (notThisWay !== 'down')
+                options.push(new dfsCall(this.i, this.j - 1, this.board, this.game, 'down', this.home, ++this.calls));
         }
         options.sort((a, b) => {
-            // if(!validateIJ(a)) {
-            //     return 1;
-            // } else if (!validateIJ(b)) {
-            //     return -1;
-            // }
-            // let trafficCostDif = this.game.trafficBoard[a.i][a.j] - this.game.trafficBoard[b.i][b.j];
-            // if (Math.abs(trafficCostDif) < 50) 
-                return distance(a, a.home) - distance(b, b.home);
+            if(!validateIJ(a)) {
+                return 1;
+            } else if (!validateIJ(b)) {
+                return -1;
+            }
+            if (this.game.trafficBoard[a.i][a.j] === 100) {
+                return 1;
+            }
+            if (this.game.trafficBoard[b.i][b.j] === 100) {
+                return -1;
+            }
+            let trafficCostDif = this.game.trafficBoard[a.i][a.j] - this.game.trafficBoard[b.i][b.j];
+            let distA = distance(a, a.home); 
+            let distB = distance(b, b.home);
+            let mapDistDif = distance(a, a.home) - distance(b, b.home);
+            // console.log(mapDistDif * 11, trafficCostDif);
+            // if (Math.abs(trafficCostDif) < 10)
+            return mapDistDif * 10 + trafficCostDif;
             // else
             //     return trafficCostDif;
+            // let roll = Math.floor(Math.random() * 8);
+            // if (roll == 1)
+            //     return 1;
+            // if (this.historyBoard[a.i][a.j] < 0) {
+            //     return -1
+            // } else if (this.historyBoard[b.i][b.j] < 0) {
+            //     return 1;
+            // }
+
         });
         let found = false;
         for (const opt of options)
@@ -351,7 +455,7 @@ class dfsCall{
 }
 
 function validateIJ(ent) {
-    return ent.i >= 0 && ent.j >= 0 && ent.i < SQUARE_COUNT && ent.j < SQUARE_COUNT && !ent.game.board[ent.i][ent.j];
+    return ent.i >= 0 && ent.j >= 0 && ent.i < SQUARE_COUNT && ent.j < SQUARE_COUNT;
 }
 class Stoplight extends Circle{
     constructor(game, x, y) {
@@ -375,7 +479,7 @@ class Home extends Circle {
         this.j = j;
         this.radius = STOP_RADIUS;
         this.colorTime = 0;
-        this.color = COLORS[colorIndex];
+        this.color = colorIndex;
     }
     update(){}
 }
@@ -391,7 +495,7 @@ class Obstacle extends Entity {
         this.dH = dH;
     }
     setBoard() {
-        console.log('setting board');
+        // console.log('setting board');
         let sqW = this.dW/SQUARE_SIZE;
         let sqH = this.dH/SQUARE_SIZE;
         for (let i = 0; i < sqW; i++) {
@@ -424,6 +528,34 @@ ASSET_MANAGER.downloadAll(function () {
     console.log("starting up da sheild");
     var canvas = document.getElementById('gameWorld');
     var ctx = canvas.getContext('2d');
+    let saveButton = document.getElementById("save");
+    let loadButton = document.getElementById("load");
+    saveButton.onclick = function (e) {
+        console.log('save pressed');
+        let message = gameEngine.save();
+        // console.log(message);
+        socket.emit("save", message);
+    };
+    loadButton.onclick = function (e) {
+        console.log('load pressed');
+        console.log(socket);
+        socket.emit("load", {studentname:"Sterling Quinn", statename:"aState"});
+    };
+    socket.on("load", function(data) {
+        console.log(data);
+        let saveState = data.data;
+        gameEngine.load(saveState);
+    });
+    socket.on("connect", function () {
+        console.log("Socket connected.")
+    });
+    socket.on("disconnect", function () {
+        console.log("Socket disconnected.")
+    });
+    socket.on("reconnect", function () {
+        console.log("Socket reconnected.")
+    });
+    
     var gameEngine = new GameEngine();
     var background = new Background(gameEngine, ASSET_MANAGER, 0, 0, 930, 930, 0, 0);
     gameEngine.background.push(background);
@@ -437,8 +569,10 @@ ASSET_MANAGER.downloadAll(function () {
     // gameEngine.addHome(new Home(gameEngine, SQUARE_COUNT - 1, SQUARE_COUNT - 1));
     // gameEngine.addHome(new Home(gameEngine, Math.floor(SQUARE_COUNT/2), Math.floor(SQUARE_COUNT - 1)));
     let cars = [];
-    let circle;
-
+    let car;
+    // car = new Car(gameEngine, 0, 0);
+    // gameEngine.addEntity(car);
+    // cars.push(car);
     cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 0, 0));
     cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[4]), 0, 18));
     cars = cars.concat(buildMapFromFile(gameEngine, ASSET_MANAGER.getServerAsset(MAP_FILES[3]), 18, 0));
@@ -453,7 +587,15 @@ ASSET_MANAGER.downloadAll(function () {
     // }
 
     for (const car of cars) {
-        car.findPath();
+        car.chooseHome();
+        // for (let i = 0; i < SQUARE_COUNT - 1; i++) {
+        //     for(let j = 0; j < SQUARE_COUNT - 1; j++) {
+        //         console.log(i, j, (distance({i:i, j:j}, car.home) - distance({i:i+1, j:j}, car.home)));
+        //         console.log(i, j, (distance({i:i, j:j}, car.home) - distance({i:i, j:j + 1}, car.home)));
+                
+        //     }
+        // }
+        car.findPath('start');
         // console.log(car);
     }
     // console.log(gameEngine.board);
@@ -544,3 +686,5 @@ function buildMapFromFile (game, file, startI, startJ) {
     }
     return cars;
 }
+
+

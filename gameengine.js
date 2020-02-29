@@ -1,5 +1,4 @@
 // This game shell was happily copied from Googler Seth Ladd's "Bad Aliens" game and his Google IO talk in 2011
-
 window.requestAnimFrame = (function () {
     return window.requestAnimationFrame ||
             window.webkitRequestAnimationFrame ||
@@ -10,7 +9,6 @@ window.requestAnimFrame = (function () {
                 window.setTimeout(callback, 1000 / 60);
             };
 })();
-
 
 class Timer {
     constructor() {
@@ -45,6 +43,8 @@ class GameEngine {
         this.homes = [];
         this.testBoard = [];
         this.trafficBoard = [];
+        this.started = false;
+        this.socket = socket;
         for (let i = 0; i < SQUARE_COUNT; i++) {
             this.board[i] = [];
             this.testBoard[i] = [];
@@ -57,6 +57,81 @@ class GameEngine {
         }
         
     }
+    save() {
+        let saveState = {};
+        saveState.entities = [];
+        this.entities.forEach(ent => {
+            if (ent instanceof Car)
+                saveState.entities.push(this.saveCar(ent));
+        });
+        saveState.homes = [];
+        this.homes.forEach(ent => {
+            saveState.homes.push(this.saveEnt(ent));
+        })
+        saveState.board = JSON.parse(JSON.stringify(this.board));
+        console.log(saveState.board);
+        saveState.trafficBoard = JSON.parse(JSON.stringify(this.trafficBoard));
+        console.log(saveState.trafficBoard);
+        return { studentname:"Sterling Quinn", statename:"aState", data:saveState};
+    }
+    load(saveState) {
+        this.board = saveState.board;
+        this.trafficBoard = saveState.trafficBoard;
+        this.obstacles = [];
+        this.homes = [];
+        this.entities = [];
+        for (let i = 0; i < SQUARE_COUNT; i++) {
+            for (let j = 0; j < SQUARE_COUNT; j++) {
+                if (this.board[i][j]) {
+                    this.addObstacle(new Obstacle(this, i, j, SQUARE_SIZE, SQUARE_SIZE));
+                }
+            }
+        }
+        saveState.homes.forEach(home => {
+            this.addHome(new Home(this, home.i, home.j, home.color));
+        });
+        saveState.entities.forEach(ent => {
+            if(ent.name === "Car") {
+                let car = new Car(this, ent.i, ent.j);
+                car.path = ent.path;
+                car.home = this.homes[ent.homeId];
+                car.color = car.home.color;
+                car.pathIndex = ent.pathIndex;
+                car.movementTimer = ent.movementTimer;
+                this.addEntity(car);
+            }
+        });
+    }
+    saveEnt(ent) {
+        let state = {};
+        state.name = ent.constructor.name;
+        state.i = ent.i;
+        state.j = ent.j;
+        state.color = ent.color;
+        return state;
+    }
+    saveCar(ent) {
+        let state = this.saveEnt(ent);
+        //below are car specific
+        state.pathIndex = ent.pathIndex;
+        state.movementTimer = ent.movementTimer;
+        state.homeId = ent.home.homeId;
+        state.path = ent.path;
+        state.moving = ent.moving;
+        state.collision = ent.collision;
+        return state;
+    }
+    trafficBoardDeepCopy() {
+        let newBoard = [];
+        for (let i = 0; i < SQUARE_COUNT; i++) {
+            newBoard[i] = [];
+            for (let j = 0; j < SQUARE_COUNT; j++) {
+                newBoard[i][j] = this.trafficBoard[i][j];
+            }
+        }
+        return newBoard;
+    }
+
     init(ctx) {
         this.ctx = ctx;
         this.surfaceWidth = this.ctx.canvas.width;
@@ -68,6 +143,7 @@ class GameEngine {
     start() {
         console.log("starting game");
         var that = this;
+        this.started = true;
         (function gameLoop() {
             that.loop();
             requestAnimFrame(gameLoop, that.ctx.canvas);
@@ -81,13 +157,18 @@ class GameEngine {
             var y = e.clientY - that.ctx.canvas.getBoundingClientRect().top;
             return { x: x, y: y };
         };
+
         this.ctx.canvas.addEventListener("mousemove", function (e) {
             //console.log(getXandY(e));
             that.mouse = getXandY(e);
         }, false);
         this.ctx.canvas.addEventListener("click", function (e) {
-            that.start();
-            that.click = getXandY(e);
+
+            if (!that.started) {
+                that.start();
+                that.click = getXandY(e);
+            }
+
         }, false);
         this.ctx.canvas.addEventListener("wheel", function (e) {
             //console.log(getXandY(e));
@@ -100,10 +181,19 @@ class GameEngine {
             that.rightclick = getXandY(e);
             e.preventDefault();
         }, false);
+        this.ctx.canvas.addEventListener("keydown", function (e) {
+            //console.log(getXandY(e));
+            if (e.code === 'KeyR')
+                console.log('something');
+            if (e.code === 'KeyS') {
+                console.log('something');
+            }
+
+        }, false);
         console.log('Input started');
     }
     addEntity(entity) {
-        console.log('added entity');
+        // console.log('added entity');
         this.entities.push(entity);
         // this.board[Math.floor((entity.x - SIDE)/SQUARE_COUNT)][Math.floor((entity.y - SIDE)/SQUARE_COUNT)] = true;
     }
@@ -112,6 +202,7 @@ class GameEngine {
         entity.setBoard();
     }
     addHome(entity) {
+        entity.homeId = this.homes.length;
         this.homes.push(entity);
         this.entities.push(entity);
     }
@@ -131,7 +222,7 @@ class GameEngine {
         // this.testBoard.forEach(tS => tS.draw(this.ctx));
         for (let i = 0; i < SQUARE_COUNT; i++) {
             for (let j = 0; j < SQUARE_COUNT; j++) {
-                if(this.board[i][j])
+                if(this.trafficBoard[i][j] >= 100)
                     this.testBoard[i][j].draw(this.ctx);
             }
         }
@@ -163,13 +254,6 @@ class GameEngine {
         this.wheel = null;
     }
 }
-
-
-
-
-
-
-
 
 class Entity {
     constructor(game, x, y) {
@@ -206,6 +290,7 @@ class Entity {
         return offscreenCanvas;
     }
 }
+
 
 
 

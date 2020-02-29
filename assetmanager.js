@@ -1,5 +1,5 @@
-const LEVEL_SERVICE_URL = "http://localhost:5000/static/SimFiles/"//local 
-// const LEVEL_SERVICE_URL = "https://battleup-backend.herokuapp.com/static/"
+// const LEVEL_SERVICE_URL = "http://localhost:5000/static/SimFiles/"//local 
+const LEVEL_SERVICE_URL = "https://battleup-backend.herokuapp.com/static/SimFiles/"
 class AssetManager {
     constructor() {
         this.successCount = 0;
