@@ -68,13 +68,17 @@ class GameEngine {
         this.homes.forEach(ent => {
             saveState.homes.push(this.saveEnt(ent));
         })
+        //these methods deep copy 2d arrays
         saveState.board = JSON.parse(JSON.stringify(this.board));
         console.log(saveState.board);
         saveState.trafficBoard = JSON.parse(JSON.stringify(this.trafficBoard));
         console.log(saveState.trafficBoard);
+        //this is the required JSON format for his server
         return { studentname:"Sterling Quinn", statename:"aState", data:saveState};
     }
     load(saveState) {
+        //I pass this method the data from the object returned form the server.
+        //access the data by referencing the data.data property of the recieved object.
         this.board = saveState.board;
         this.trafficBoard = saveState.trafficBoard;
         this.obstacles = [];
