@@ -105,6 +105,7 @@ class GameEngine {
                 this.addEntity(car);
             }
         });
+        this.draw();
     }
     saveEnt(ent) {
         let state = {};
@@ -226,7 +227,7 @@ class GameEngine {
         // this.testBoard.forEach(tS => tS.draw(this.ctx));
         for (let i = 0; i < SQUARE_COUNT; i++) {
             for (let j = 0; j < SQUARE_COUNT; j++) {
-                if(this.trafficBoard[i][j] >= 100)
+                if(this.trafficBoard[i][j] >= 100 && !this.board[i][j])
                     this.testBoard[i][j].draw(this.ctx);
             }
         }
